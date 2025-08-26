@@ -1,0 +1,13 @@
+# React
+node_modules/
+.env
+.env.*
+build/
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db
