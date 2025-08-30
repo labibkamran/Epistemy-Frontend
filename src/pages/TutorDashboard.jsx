@@ -1,14 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Brain,
-  Upload,
-  Calendar,
   Users,
   TrendingUp,
-  Settings,
   LogOut,
   Play,
   Award,
@@ -16,49 +13,18 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react"
+import { createTutorSession, listTutorSessions } from "../api/tutor"
+import { clearUser, getUser } from "../auth"
 
 const TutorDashboard = () => {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState("overview")
+  const [newTitle, setNewTitle] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
-  // Mock data
-  const sessions = useMemo(() => [
-    {
-      id: 1,
-      student: "Alice Johnson",
-      subject: "Calculus",
-      date: "2024-01-15",
-      duration: "60 min",
-      status: "completed",
-      aiProcessed: true,
-      topics: ["Derivatives", "Chain Rule", "Product Rule"],
-      progressScore: 85,
-      quizGenerated: true,
-    },
-    {
-      id: 2,
-      student: "Bob Smith",
-      subject: "Physics",
-      date: "2024-01-14",
-      duration: "45 min",
-      status: "processing",
-      aiProcessed: false,
-      topics: ["Kinematics", "Velocity", "Acceleration"],
-      progressScore: null,
-      quizGenerated: false,
-    },
-    {
-      id: 3,
-      student: "Carol Davis",
-      subject: "Chemistry",
-      date: "2024-01-13",
-      duration: "90 min",
-      status: "completed",
-      aiProcessed: true,
-      topics: ["Organic Chemistry", "Functional Groups", "Reactions"],
-      progressScore: 92,
-      quizGenerated: true,
-    },
-  ], [])
+  // Sessions start empty; filled when the tutor creates one
+  const [sessions, setSessions] = useState([])
 
   const stats = {
     totalSessions: 24,
@@ -67,20 +33,77 @@ const TutorDashboard = () => {
     revenue: 2400,
   }
 
-  const students = useMemo(() => {
-    const map = new Map()
-    sessions.forEach((s) => {
-      const entry = map.get(s.student) || { name: s.student, subjects: new Set(), sessions: 0 }
-      entry.sessions += 1
-      entry.subjects.add(s.subject)
-      map.set(s.student, entry)
-    })
-    return Array.from(map.values()).map((s) => ({
-      name: s.name,
-      sessions: s.sessions,
-      subjects: Array.from(s.subjects).join(", "),
-    }))
-  }, [sessions])
+  // Students and Calendar pages removed
+
+  const getCurrentUser = () => getUser()
+
+  // Fetch sessions initially and poll for near real-time updates
+  useEffect(() => {
+    let timer;
+    const me = getCurrentUser();
+    if (!me || me.role !== 'tutor') return;
+    const load = async () => {
+  try {
+        const { sessions: raw } = await listTutorSessions(me.id)
+        const mapped = (raw || []).map((session) => ({
+          id: session._id || session.id,
+          student: session.studentId ? 'Assigned' : 'Unassigned',
+          subject: session.title || 'Untitled',
+          date: session.createdAt ? new Date(session.createdAt).toISOString().slice(0,10) : new Date().toISOString().slice(0,10),
+          duration: '-',
+          status: session.status || 'draft',
+          paid: Boolean(session.paid),
+          aiProcessed: Boolean(session.aiProcessed),
+          topics: session.topics || [],
+          progressScore: session.progressScore ?? null,
+          quizGenerated: Boolean(session.quizGenerated),
+        }))
+        setSessions(mapped)
+      } catch (e) {
+        if (import.meta?.env?.DEV) console.warn('listTutorSessions failed', e)
+      }
+    }
+    load()
+    timer = setInterval(load, 5000) // 5s polling
+    return () => timer && clearInterval(timer)
+  }, [])
+
+  async function handleCreate() {
+    if (!newTitle.trim()) return
+    const me = getCurrentUser()
+    if (!me || me.role !== 'tutor') {
+      alert('Please login as tutor first')
+      return false
+    }
+    try {
+      setCreating(true)
+      const { session } = await createTutorSession({ tutorId: me.id, title: newTitle.trim() })
+      // Map backend session to UI shape
+      const ui = {
+        id: session._id || session.id || Math.random(),
+        student: session.studentId ? 'Assigned' : 'Unassigned',
+        subject: session.title || 'Untitled',
+        date: new Date().toISOString().slice(0, 10),
+        duration: '-',
+        status: session.status || 'draft',
+        aiProcessed: false,
+        topics: [],
+        progressScore: null,
+        quizGenerated: false,
+      }
+  setSessions((prev) => [ui, ...prev])
+      setNewTitle("")
+      setActiveTab('sessions')
+      return true
+    } catch (err) {
+      alert(err.message || 'Failed to create session')
+      return false
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Upload now handled on SessionDetails page
 
   return (
     <div className="min-h-screen bg-dark-900">
@@ -115,38 +138,12 @@ const TutorDashboard = () => {
               <Play className="h-5 w-5 mr-3" />
               Sessions
             </button>
-            <button
-              onClick={() => setActiveTab("students")}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg mb-1 ${
-                activeTab === "students"
-                  ? "bg-primary-600 text-white"
-                  : "text-dark-300 hover:text-white hover:bg-dark-700"
-              }`}
-            >
-              <Users className="h-5 w-5 mr-3" />
-              Students
-            </button>
-            <button
-              onClick={() => setActiveTab("calendar")}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg mb-1 ${
-                activeTab === "calendar"
-                  ? "bg-primary-600 text-white"
-                  : "text-dark-300 hover:text-white hover:bg-dark-700"
-              }`}
-            >
-              <Calendar className="h-5 w-5 mr-3" />
-              Calendar
-            </button>
           </div>
 
           <div className="px-3 mt-8">
-            <p className="px-3 text-xs font-semibold text-dark-400 uppercase tracking-wider">Account</p>
-            <button className="w-full flex items-center px-3 py-2 text-sm font-medium text-dark-300 hover:text-white hover:bg-dark-700 rounded-lg mt-2">
-              <Settings className="h-5 w-5 mr-3" />
-              Settings
-            </button>
             <Link
               to="/"
+              onClick={() => clearUser()}
               className="w-full flex items-center px-3 py-2 text-sm font-medium text-dark-300 hover:text-white hover:bg-dark-700 rounded-lg"
             >
               <LogOut className="h-5 w-5 mr-3" />
@@ -159,16 +156,13 @@ const TutorDashboard = () => {
       {/* Main Content */}
       <div className="ml-64">
         {/* Header */}
-        <header className="bg-dark-800 border-b border-dark-700 px-6 py-4">
+    <header className="bg-dark-800 border-b border-dark-700 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white">Tutor Dashboard</h1>
               <p className="text-dark-300">Welcome back, Sarah Mitchell</p>
             </div>
-            <button className="btn-primary flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Upload Session
-            </button>
+      {/* Removed Upload Session top button */}
           </div>
         </header>
 
@@ -236,58 +230,68 @@ const TutorDashboard = () => {
                   </button>
                 </div>
                 <div className="space-y-4">
-                  {sessions.slice(0, 5).map((session) => (
-                    <div key={session.id} className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div
-                          className={`w-3 h-3 rounded-full ${
-                            session.status === "completed"
-                              ? "bg-green-500"
-                              : session.status === "processing"
-                                ? "bg-yellow-500"
-                                : "bg-blue-500"
-                          }`}
-                        />
-                        <div>
-                          <p className="font-medium text-white">
-                            {session.subject} • {session.student}
-                          </p>
-                          <p className="text-sm text-dark-300">
-                            {session.date} • {session.duration}
-                          </p>
+                  {sessions.length === 0 ? (
+                    <div className="p-6 bg-dark-700 rounded-lg text-dark-300">
+                      No sessions yet. Click "Create Session" to get started.
+                    </div>
+                  ) : (
+                    sessions.slice(0, 5).map((session) => (
+                      <div key={session.id} className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
+                        <div className="flex items-center space-x-4">
+              <div
+                            className={`w-3 h-3 rounded-full ${
+                session.status === "processed"
+                                ? "bg-green-500"
+                                : session.status === "processing"
+                                  ? "bg-yellow-500"
+                                  : "bg-blue-500"
+                            }`}
+                          />
+                          <div>
+                            <p className="font-medium text-white">
+                              {session.subject} • {session.student}
+                            </p>
+                            <p className="text-sm text-dark-300">
+                              {session.date} • {session.duration}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+              {session.status === "processed" && (
+                            <span className="px-2 py-1 bg-green-600/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Processed
+                            </span>
+                          )}
+                          {session.status === "processing" && (
+                            <span className="px-2 py-1 bg-yellow-600/20 text-yellow-400 text-xs rounded-full flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" /> Processing
+                            </span>
+                          )}
+                          {session.aiProcessed && (
+                            <span className="px-2 py-1 bg-primary-600/20 text-primary-400 text-xs rounded-full">AI Ready</span>
+                          )}
+                          <button
+                            className="btn-secondary"
+                            onClick={() => navigate(`/tutor-session/${session.id}`)}
+                          >
+                            View
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {session.status === "completed" && (
-                          <span className="px-2 py-1 bg-green-600/20 text-green-400 text-xs rounded-full flex items-center gap-1">
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Completed
-                          </span>
-                        )}
-                        {session.status === "processing" && (
-                          <span className="px-2 py-1 bg-yellow-600/20 text-yellow-400 text-xs rounded-full flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" /> Processing
-                          </span>
-                        )}
-                        {session.aiProcessed && (
-                          <span className="px-2 py-1 bg-primary-600/20 text-primary-400 text-xs rounded-full">AI Ready</span>
-                        )}
-                        <button className="btn-secondary">{session.status === "completed" ? "View Report" : "Details"}</button>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Quick Upload */}
+              {/* Create Session (trigger via modal) */}
               <div className="card">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Upload a New Session</h3>
-                    <p className="text-sm text-dark-400">Upload a recording to auto-generate notes and quizzes.</p>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white">Create a Session</h3>
+                    <p className="text-sm text-dark-400">Click the button to enter a title and create your session.</p>
                   </div>
-                  <button className="btn-primary flex items-center gap-2">
-                    <Upload className="h-5 w-5" />
-                    Upload
+                  <button className="btn-primary" onClick={() => { setNewTitle(""); setShowCreateModal(true); }}>
+                    Create Session
                   </button>
                 </div>
               </div>
@@ -295,78 +299,74 @@ const TutorDashboard = () => {
           )}
 
           {activeTab === "sessions" && (
-            <div className="card">
-              <h2 className="text-xl font-semibold text-white mb-4">All Sessions</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-dark-400">
-                      <th className="py-2">Student</th>
-                      <th className="py-2">Subject</th>
-                      <th className="py-2">Date</th>
-                      <th className="py-2">Duration</th>
-                      <th className="py-2">Status</th>
-                      <th className="py-2">AI</th>
-                      <th className="py-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.map((s) => (
-                      <tr key={s.id} className="border-t border-dark-700">
-                        <td className="py-3 text-white">{s.student}</td>
-                        <td className="py-3 text-white">{s.subject}</td>
-                        <td className="py-3 text-dark-300">{s.date}</td>
-                        <td className="py-3 text-dark-300">{s.duration}</td>
-                        <td className="py-3">
-                          {s.status === "completed" ? (
-                            <span className="px-2 py-1 bg-green-600/20 text-green-400 text-xs rounded-full">Completed</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-yellow-600/20 text-yellow-400 text-xs rounded-full">Processing</span>
-                          )}
-                        </td>
-                        <td className="py-3">
-                          {s.aiProcessed ? (
-                            <span className="px-2 py-1 bg-primary-600/20 text-primary-400 text-xs rounded-full">Ready</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded-full">Pending</span>
-                          )}
-                        </td>
-                        <td className="py-3">
-                          <button className="btn-secondary">{s.status === "completed" ? "Open" : "Details"}</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">All Sessions</h2>
+                <button className="btn-primary" onClick={() => { setNewTitle(""); setShowCreateModal(true); }}>
+                  Create Session
+                </button>
               </div>
+
+              {sessions.length === 0 ? (
+                <div className="card text-center text-dark-300">You have no sessions yet. Click "Create Session" to add your first.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sessions.map((s) => (
+                    <Link
+                      key={s.id}
+                      to={`/tutor-session/${s.id}`}
+                      className="card block hover:bg-dark-700/40 hover:border-primary-600/30 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-white font-semibold">{s.subject}</h3>
+                          <p className="text-dark-400 text-sm">{s.student}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs ${s.status === 'processed' ? 'bg-green-600/20 text-green-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
+                          {s.status === 'processed' ? 'Processed' : (s.status || 'Draft')}
+                        </span>
+                      </div>
+                      <div className="mt-3 text-sm text-dark-300">
+                        <div>Date: {s.date}</div>
+                        <div>Payment: {s.paid ? 'Paid' : 'Unpaid'}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {activeTab === "students" && (
-            <div className="card">
-              <h2 className="text-xl font-semibold text-white mb-4">Students</h2>
-              <div className="space-y-3">
-                {students.map((st) => (
-                  <div key={st.name} className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
-                    <div>
-                      <p className="font-medium text-white">{st.name}</p>
-                      <p className="text-sm text-dark-300">Subjects: {st.subjects}</p>
-                    </div>
-                    <div className="text-dark-300">{st.sessions} sessions</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "calendar" && (
-            <div className="card">
-              <h2 className="text-xl font-semibold text-white mb-4">Calendar</h2>
-              <div className="p-6 bg-dark-700 rounded-lg text-dark-300">Calendar view coming soon.</div>
-            </div>
-          )}
+          {/* Students and Calendar tabs removed */}
         </main>
       </div>
+
+      {/* Create Session Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md p-6 mx-4">
+            <h3 className="text-lg font-semibold text-white">Create Session</h3>
+            <p className="text-sm text-dark-400 mt-1 mb-4">Enter a session title. You can upload a transcript after creation.</p>
+            <input
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="e.g., Calculus - Derivatives"
+              className="input-field w-full"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={creating || !newTitle.trim()}
+                onClick={async () => { const ok = await handleCreate(); if (ok) setShowCreateModal(false); }}
+              >
+                {creating ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

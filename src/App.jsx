@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import StudentDashboard from './pages/StudentDashboard'
 import TutorDashboard from './pages/TutorDashboard'
+import SessionDetails from './pages/SessionDetails'
 
 function App() {
  
@@ -20,6 +21,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/tutor-dashboard" element={<TutorDashboard />} />
+          <Route path="/tutor-session/:id" element={<SessionDetails />} />
           <Route path="/student-dashboard" element={<StudentDashboard />} />
           <Route path="/terms" element={<div className="pt-24 px-6">Terms of Service (placeholder)</div>} />
           <Route path="/privacy" element={<div className="pt-24 px-6">Privacy Policy (placeholder)</div>} />

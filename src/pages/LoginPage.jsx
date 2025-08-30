@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Brain, Eye, EyeOff, Mail, Lock } from "lucide-react"
+import { tutorLogin } from "../api/tutor"
+import { studentLogin } from "../api/student"
+import { setUser } from "../auth"
 
 const LoginPage = () => {
 	const [showPassword, setShowPassword] = useState(false)
@@ -11,14 +14,26 @@ const LoginPage = () => {
 	const [userType, setUserType] = useState("tutor")
 	const navigate = useNavigate()
 
-	const handleSubmit = (e) => {
+	const handleSubmit = async (e) => {
 		e.preventDefault()
-		// Mock authentication - in real app, this would call an API
-		if (userType === "tutor") {
-			navigate("/tutor-dashboard")
-		} else {
-			navigate("/student-dashboard")
-		}
+			if (userType === "tutor") {
+				try {
+					const { user } = await tutorLogin({ email, password })
+					setUser(user)
+					navigate("/tutor-dashboard")
+				} catch (err) {
+					alert(err.message || "Login failed")
+				}
+				return
+			}
+			// Student flow (real API)
+			try {
+				const { user } = await studentLogin({ email, password })
+				setUser(user)
+				navigate("/student-dashboard")
+			} catch (err) {
+				alert(err.message || "Login failed")
+			}
 	}
 
 	return (

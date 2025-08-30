@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Brain, Eye, EyeOff, Mail, Lock, User } from "lucide-react"
+import { tutorSignup } from "../api/tutor"
+import { studentSignup } from "../api/student"
+import { setUser } from "../auth"
 
 const SignUpPage = () => {
 	const [showPassword, setShowPassword] = useState(false)
@@ -18,14 +21,40 @@ const SignUpPage = () => {
 	})
 	const navigate = useNavigate()
 
-	const handleSubmit = (e) => {
+	const handleSubmit = async (e) => {
 		e.preventDefault()
-		// Mock registration - in real app, this would call an API
-		if (formData.userType === "tutor") {
-			navigate("/tutor-dashboard")
-		} else {
-			navigate("/student-dashboard")
-		}
+				if (formData.userType === "tutor") {
+						try {
+							const { user } = await tutorSignup({
+						firstName: formData.firstName,
+						lastName: formData.lastName,
+						email: formData.email,
+						password: formData.password,
+					})
+							setUser(user)
+					navigate("/tutor-dashboard")
+				} catch (err) {
+					alert(err.message || "Sign up failed")
+				}
+				return
+			}
+				// Student flow (real API)
+				if (formData.password !== formData.confirmPassword) {
+					alert("Passwords do not match")
+					return
+				}
+					try {
+						const { user } = await studentSignup({
+						firstName: formData.firstName,
+						lastName: formData.lastName,
+						email: formData.email,
+						password: formData.password,
+					})
+						setUser(user)
+					navigate("/student-dashboard")
+				} catch (err) {
+					alert(err.message || "Sign up failed")
+				}
 	}
 
 	const handleInputChange = (e) => {

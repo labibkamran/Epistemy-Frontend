@@ -1,11 +1,26 @@
 "use client"
 
 import React from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { Brain, Menu, X } from "lucide-react"
+import { getUser, clearUser } from "../auth"
 
 const Navbar = ({ transparent = false }) => {
 	const [isMenuOpen, setIsMenuOpen] = React.useState(false)
+  const [user, setUser] = React.useState(() => getUser())
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  React.useEffect(() => {
+    setUser(getUser())
+  }, [location])
+
+  const handleSignOut = () => {
+    clearUser()
+    setUser(null)
+    setIsMenuOpen(false)
+    navigate("/")
+  }
 
 	return (
 		<nav
@@ -29,12 +44,18 @@ const Navbar = ({ transparent = false }) => {
 						<Link to="/pricing" className="text-dark-300 hover:text-white transition-colors">
 							Pricing
 						</Link>
-						<Link to="/login" className="text-dark-300 hover:text-white transition-colors">
-							Login
-						</Link>
-						<Link to="/signup" className="btn-primary">
-							Get Started
-						</Link>
+						{user ? (
+							<button onClick={handleSignOut} className="btn-secondary">Sign out</button>
+						) : (
+							<>
+								<Link to="/login" className="text-dark-300 hover:text-white transition-colors">
+									Login
+								</Link>
+								<Link to="/signup" className="btn-primary">
+									Get Started
+								</Link>
+							</>
+						)}
 					</div>
 
 					{/* Mobile menu button */}
@@ -49,21 +70,27 @@ const Navbar = ({ transparent = false }) => {
 				{isMenuOpen && (
 					<div className="md:hidden">
 						<div className="px-2 pt-2 pb-3 space-y-1 bg-dark-800 rounded-lg mt-2">
-							<Link to="/" className="block px-3 py-2 text-dark-300 hover:text-white">
+							<Link to="/" className="block px-3 py-2 text-dark-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>
 								Home
 							</Link>
-							<Link to="/features" className="block px-3 py-2 text-dark-300 hover:text-white">
+							<Link to="/features" className="block px-3 py-2 text-dark-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>
 								Features
 							</Link>
-							<Link to="/pricing" className="block px-3 py-2 text-dark-300 hover:text-white">
+							<Link to="/pricing" className="block px-3 py-2 text-dark-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>
 								Pricing
 							</Link>
-							<Link to="/login" className="block px-3 py-2 text-dark-300 hover:text-white">
-								Login
-							</Link>
-							<Link to="/signup" className="block px-3 py-2 text-primary-500 hover:text-primary-400">
-								Get Started
-							</Link>
+							{user ? (
+								<button onClick={handleSignOut} className="w-full text-left block px-3 py-2 text-primary-500 hover:text-primary-400">Sign out</button>
+							) : (
+								<>
+									<Link to="/login" className="block px-3 py-2 text-dark-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>
+										Login
+									</Link>
+									<Link to="/signup" className="block px-3 py-2 text-primary-500 hover:text-primary-400" onClick={() => setIsMenuOpen(false)}>
+										Get Started
+									</Link>
+								</>
+							)}
 						</div>
 					</div>
 				)}
