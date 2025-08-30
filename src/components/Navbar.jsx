@@ -1,26 +1,20 @@
 "use client"
 
 import React from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Brain, Menu, X } from "lucide-react"
-import { getUser, clearUser } from "../auth"
+import { getUser } from "../auth"
 
 const Navbar = ({ transparent = false }) => {
 	const [isMenuOpen, setIsMenuOpen] = React.useState(false)
   const [user, setUser] = React.useState(() => getUser())
   const location = useLocation()
-  const navigate = useNavigate()
 
   React.useEffect(() => {
     setUser(getUser())
   }, [location])
 
-  const handleSignOut = () => {
-    clearUser()
-    setUser(null)
-    setIsMenuOpen(false)
-    navigate("/")
-  }
+	const dashPath = user?.role === 'tutor' ? '/tutor-dashboard' : user?.role === 'student' ? '/student-dashboard' : '/'
 
 	return (
 		<nav
@@ -34,7 +28,7 @@ const Navbar = ({ transparent = false }) => {
 					</Link>
 
 					{/* Desktop Navigation */}
-					<div className="hidden md:flex items-center space-x-8">
+								<div className="hidden md:flex items-center space-x-8">
 						<Link to="/" className="text-dark-300 hover:text-white transition-colors">
 							Home
 						</Link>
@@ -44,9 +38,9 @@ const Navbar = ({ transparent = false }) => {
 						<Link to="/pricing" className="text-dark-300 hover:text-white transition-colors">
 							Pricing
 						</Link>
-						{user ? (
-							<button onClick={handleSignOut} className="btn-secondary">Sign out</button>
-						) : (
+									{user ? (
+										<Link to={dashPath} className="btn-secondary">Go to Dashboard</Link>
+									) : (
 							<>
 								<Link to="/login" className="text-dark-300 hover:text-white transition-colors">
 									Login
@@ -79,9 +73,9 @@ const Navbar = ({ transparent = false }) => {
 							<Link to="/pricing" className="block px-3 py-2 text-dark-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>
 								Pricing
 							</Link>
-							{user ? (
-								<button onClick={handleSignOut} className="w-full text-left block px-3 py-2 text-primary-500 hover:text-primary-400">Sign out</button>
-							) : (
+											{user ? (
+												<Link to={dashPath} onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-primary-500 hover:text-primary-400">Go to Dashboard</Link>
+											) : (
 								<>
 									<Link to="/login" className="block px-3 py-2 text-dark-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>
 										Login

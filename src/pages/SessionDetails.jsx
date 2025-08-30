@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getTutorSession, uploadTranscript, updateTutorSession, listStudents } from '../api/tutor'
-import { ArrowLeft, Upload, CheckCircle2, Clock, Brain, LogOut, Plus, Trash2 } from 'lucide-react'
+import { getTutorSession, uploadTranscript, updateTutorSession } from '../api/tutor'
+import { ArrowLeft, Upload, CheckCircle2, Clock, Brain, LogOut, Plus, Trash2, Loader2 } from 'lucide-react'
 import { clearUser } from '../auth'
 
 export default function SessionDetails() {
@@ -13,8 +13,7 @@ export default function SessionDetails() {
   const [session, setSession] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [showStudentPicker, setShowStudentPicker] = useState(false)
-  const [students, setStudents] = useState([])
+  
 
   useEffect(() => {
     let mounted = true
@@ -30,22 +29,19 @@ export default function SessionDetails() {
       }
     }
     load()
-    ;(async () => {
-      try {
-        const { students } = await listStudents()
-        setStudents(students || [])
-      } catch (e) {
-        if (import.meta?.env?.DEV) console.warn('listStudents failed', e)
-      }
-    })()
+    
     return () => { mounted = false }
   }, [id])
 
   const onUpload = async (file) => {
     if (!file) return
     try {
+      if (!session?.studentId) {
+        alert('A student must be assigned to this session before uploading the transcript.')
+        return
+      }
       setUploading(true)
-      await uploadTranscript({ sessionId: id, file })
+      await uploadTranscript({ sessionId: id, studentId: session.studentId, file })
       // Refresh details after upload
       const { session: fresh } = await getTutorSession(id)
       setSession(fresh)
@@ -151,13 +147,6 @@ export default function SessionDetails() {
                 />
               </div>
               <div className="relative flex items-center gap-3">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowStudentPicker((v) => !v)}
-                >
-                  Assign student
-                </button>
                 {processed ? (
                   <span className="px-3 py-1 bg-green-600/20 text-green-400 rounded-full inline-flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" /> Processed
@@ -167,40 +156,13 @@ export default function SessionDetails() {
                     <Clock className="h-4 w-4" /> {session.status || 'draft'}
                   </span>
                 )}
-
-                {showStudentPicker && (
-                  <div className="absolute right-0 top-10 z-50 w-64 bg-dark-800 border border-dark-700 rounded-lg shadow-lg">
-                    <div className="p-2 text-dark-300 text-sm">Select a student</div>
-                    <ul className="max-h-64 overflow-auto">
-                      {students.map((stu) => (
-                        <li key={stu.id}>
-                          <button
-                            type="button"
-                            className="w-full text-left px-3 py-2 hover:bg-dark-700 text-white"
-                            onClick={() => {
-                              // Persist to backend
-                              updateTutorSession(session._id, { studentId: stu.id })
-                                .then(({ session: updated }) => setSession(updated))
-                                .catch((e) => alert(e.message || 'Failed to assign'))
-                                .finally(() => setShowStudentPicker(false))
-                            }}
-                          >
-                            {stu.name}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-dark-700 rounded-lg p-4">
                 <p className="text-dark-400 text-sm">Student</p>
-                <p className="text-white">
-                  {session.studentName || students.find(s => s.id === session.studentId)?.name || (session.studentId ? 'Assigned' : 'Unassigned')}
-                </p>
+                <p className="text-white">{session.studentName || (session.studentId ? 'Assigned' : 'Unassigned')}</p>
               </div>
             </div>
             {processed && (
@@ -219,12 +181,12 @@ export default function SessionDetails() {
               <input
                 id="upload-tx"
                 type="file"
-                accept=".txt,.md,.rtf,.pdf"
+                accept=".txt"
                 style={{ display: 'none' }}
                 onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onUpload(f); e.target.value = '' }}
               />
               <button className="btn-primary inline-flex items-center gap-2" disabled={uploading} onClick={() => document.getElementById('upload-tx')?.click()}>
-                <Upload className="h-4 w-4" /> {uploading ? 'Uploading…' : 'Upload Transcript'}
+                {uploading ? (<><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>) : (<><Upload className="h-4 w-4" /> Upload .txt Transcript</>)}
               </button>
             </div>
           ) : (
@@ -528,6 +490,17 @@ export default function SessionDetails() {
           )}
         </main>
       </div>
+      {uploading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="bg-dark-800 border border-dark-700 rounded-xl p-6 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary-500" />
+            <div>
+              <div className="text-white font-medium">Processing transcript…</div>
+              <div className="text-dark-300 text-sm">Please wait while we extract topics, summary, progress, and quiz.</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

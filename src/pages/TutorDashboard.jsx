@@ -8,13 +8,11 @@ import {
   TrendingUp,
   LogOut,
   Play,
-  Award,
-  DollarSign,
   CheckCircle2,
   Clock,
 } from "lucide-react"
-import { createTutorSession, listTutorSessions } from "../api/tutor"
-import { clearUser, getUser } from "../auth"
+import { createTutorSession, listTutorSessions, listStudents, getTutorProfile, updateTutorProfile } from "../api/tutor"
+import { clearUser, getUser, setUser } from "../auth"
 
 const TutorDashboard = () => {
   const navigate = useNavigate()
@@ -22,16 +20,17 @@ const TutorDashboard = () => {
   const [newTitle, setNewTitle] = useState("")
   const [creating, setCreating] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [students, setStudents] = useState([])
+  const [loadingStudents, setLoadingStudents] = useState(false)
+  const [selectedStudentId, setSelectedStudentId] = useState("")
+  const [showCalendlyModal, setShowCalendlyModal] = useState(false)
+  const [calendlyUrlInput, setCalendlyUrlInput] = useState("")
+  const [savingCalendly, setSavingCalendly] = useState(false)
 
   // Sessions start empty; filled when the tutor creates one
   const [sessions, setSessions] = useState([])
 
-  const stats = {
-    totalSessions: 24,
-    activeStudents: 12,
-    avgProgress: 87,
-    revenue: 2400,
-  }
+  // Stats are computed in real-time from the sessions list
 
   // Students and Calendar pages removed
 
@@ -47,6 +46,7 @@ const TutorDashboard = () => {
         const { sessions: raw } = await listTutorSessions(me.id)
         const mapped = (raw || []).map((session) => ({
           id: session._id || session.id,
+          studentId: session.studentId || null,
           student: session.studentId ? 'Assigned' : 'Unassigned',
           subject: session.title || 'Untitled',
           date: session.createdAt ? new Date(session.createdAt).toISOString().slice(0,10) : new Date().toISOString().slice(0,10),
@@ -68,8 +68,41 @@ const TutorDashboard = () => {
     return () => timer && clearInterval(timer)
   }, [])
 
+  // Ensure we have latest profile info (calendlyUrl) after mount
+  useEffect(() => {
+    const me = getCurrentUser();
+    if (!me || me.role !== 'tutor') return;
+    (async () => {
+      try {
+        const { user } = await getTutorProfile(me.id);
+        if (user && user.calendlyUrl !== me.calendlyUrl) {
+          setUser({ ...me, calendlyUrl: user.calendlyUrl || null });
+        }
+      } catch (e) {
+        if (import.meta?.env?.DEV) console.warn('getTutorProfile failed', e)
+      }
+    })();
+  }, [])
+
+  // Load students when opening the create modal (once per session)
+  useEffect(() => {
+    const loadStudents = async () => {
+      if (!showCreateModal) return
+      try {
+        setLoadingStudents(true)
+        const { students } = await listStudents()
+        setStudents(students || [])
+      } catch (e) {
+        if (import.meta?.env?.DEV) console.warn('listStudents failed', e)
+      } finally {
+        setLoadingStudents(false)
+      }
+    }
+    loadStudents()
+  }, [showCreateModal])
+
   async function handleCreate() {
-    if (!newTitle.trim()) return
+    if (!newTitle.trim() || !selectedStudentId) return
     const me = getCurrentUser()
     if (!me || me.role !== 'tutor') {
       alert('Please login as tutor first')
@@ -77,7 +110,7 @@ const TutorDashboard = () => {
     }
     try {
       setCreating(true)
-      const { session } = await createTutorSession({ tutorId: me.id, title: newTitle.trim() })
+      const { session } = await createTutorSession({ tutorId: me.id, title: newTitle.trim(), studentId: selectedStudentId })
       // Map backend session to UI shape
       const ui = {
         id: session._id || session.id || Math.random(),
@@ -93,6 +126,7 @@ const TutorDashboard = () => {
       }
   setSessions((prev) => [ui, ...prev])
       setNewTitle("")
+      setSelectedStudentId("")
       setActiveTab('sessions')
       return true
     } catch (err) {
@@ -160,7 +194,7 @@ const TutorDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white">Tutor Dashboard</h1>
-              <p className="text-dark-300">Welcome back, Sarah Mitchell</p>
+              <p className="text-dark-300">Welcome back, {getCurrentUser()?.name || 'Tutor'}</p>
             </div>
       {/* Removed Upload Session top button */}
           </div>
@@ -170,13 +204,36 @@ const TutorDashboard = () => {
         <main className="p-6">
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Calendly Section */}
+              <div className="card">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white">Scheduling</h3>
+                    <p className="text-sm text-dark-400 mt-1">Share or edit your Calendly link so students can book sessions.</p>
+                    <div className="mt-3">
+                      {getCurrentUser()?.calendlyUrl ? (
+                        <div className="flex items-center justify-between bg-dark-700 border border-dark-600 rounded-lg p-3">
+                          <a href={getCurrentUser().calendlyUrl} target="_blank" rel="noreferrer" className="text-primary-400 underline truncate max-w-[70%]">
+                            {getCurrentUser().calendlyUrl}
+                          </a>
+                          <button className="btn-secondary" onClick={() => { setCalendlyUrlInput(getCurrentUser().calendlyUrl || ""); setShowCalendlyModal(true); }}>Edit</button>
+                        </div>
+                      ) : (
+                        <button className="btn-primary" onClick={() => { setCalendlyUrlInput(""); setShowCalendlyModal(true); }}>
+                          Add Calendly URL
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+        {/* Stats Grid (real-time) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                 <div className="card">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-dark-400 text-sm">Total Sessions</p>
-                      <p className="text-2xl font-bold text-white">{stats.totalSessions}</p>
+          <p className="text-2xl font-bold text-white">{sessions.length}</p>
                     </div>
                     <div className="w-12 h-12 bg-primary-600/20 rounded-lg flex items-center justify-center">
                       <Play className="h-6 w-6 text-primary-500" />
@@ -187,32 +244,10 @@ const TutorDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-dark-400 text-sm">Active Students</p>
-                      <p className="text-2xl font-bold text-white">{stats.activeStudents}</p>
+          <p className="text-2xl font-bold text-white">{(() => { const set = new Set(); sessions.forEach(s => { if (s.studentId) set.add(String(s.studentId)) }); return set.size; })()}</p>
                     </div>
                     <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
                       <Users className="h-6 w-6 text-green-500" />
-                    </div>
-                  </div>
-                </div>
-                <div className="card">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-dark-400 text-sm">Average Progress</p>
-                      <p className="text-2xl font-bold text-white">{stats.avgProgress}%</p>
-                    </div>
-                    <div className="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
-                      <Award className="h-6 w-6 text-yellow-500" />
-                    </div>
-                  </div>
-                </div>
-                <div className="card">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-dark-400 text-sm">Revenue (USD)</p>
-                      <p className="text-2xl font-bold text-white">${stats.revenue}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-blue-400" />
                     </div>
                   </div>
                 </div>
@@ -290,7 +325,7 @@ const TutorDashboard = () => {
                     <h3 className="text-lg font-semibold text-white">Create a Session</h3>
                     <p className="text-sm text-dark-400">Click the button to enter a title and create your session.</p>
                   </div>
-                  <button className="btn-primary" onClick={() => { setNewTitle(""); setShowCreateModal(true); }}>
+                  <button className="btn-primary" onClick={() => { setNewTitle(""); setSelectedStudentId(""); setShowCreateModal(true); }}>
                     Create Session
                   </button>
                 </div>
@@ -302,7 +337,7 @@ const TutorDashboard = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-white">All Sessions</h2>
-                <button className="btn-primary" onClick={() => { setNewTitle(""); setShowCreateModal(true); }}>
+                <button className="btn-primary" onClick={() => { setNewTitle(""); setSelectedStudentId(""); setShowCreateModal(true); }}>
                   Create Session
                 </button>
               </div>
@@ -328,7 +363,6 @@ const TutorDashboard = () => {
                       </div>
                       <div className="mt-3 text-sm text-dark-300">
                         <div>Date: {s.date}</div>
-                        <div>Payment: {s.paid ? 'Paid' : 'Unpaid'}</div>
                       </div>
                     </Link>
                   ))}
@@ -346,7 +380,7 @@ const TutorDashboard = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
           <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md p-6 mx-4">
             <h3 className="text-lg font-semibold text-white">Create Session</h3>
-            <p className="text-sm text-dark-400 mt-1 mb-4">Enter a session title. You can upload a transcript after creation.</p>
+            <p className="text-sm text-dark-400 mt-1 mb-4">Enter a session title and select a student. Transcript upload requires a student.</p>
             <input
               type="text"
               value={newTitle}
@@ -354,14 +388,71 @@ const TutorDashboard = () => {
               placeholder="e.g., Calculus - Derivatives"
               className="input-field w-full"
             />
+            <div className="mt-3">
+              <label className="block text-sm text-dark-300 mb-1">Student</label>
+              <select
+                className="w-full bg-dark-800 border border-dark-700 rounded-lg p-2 text-white"
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+              >
+                <option value="" disabled>{loadingStudents ? 'Loading students…' : 'Select a student'}</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                ))}
+              </select>
+              {(!loadingStudents && students.length === 0) && (
+                <p className="text-xs text-yellow-400 mt-1">No students found. Create student accounts first.</p>
+              )}
+            </div>
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
               <button
                 className="btn-primary"
-                disabled={creating || !newTitle.trim()}
+                disabled={creating || !newTitle.trim() || !selectedStudentId}
                 onClick={async () => { const ok = await handleCreate(); if (ok) setShowCreateModal(false); }}
               >
                 {creating ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendly Modal */}
+      {showCalendlyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md p-6 mx-4">
+            <h3 className="text-lg font-semibold text-white">{getCurrentUser()?.calendlyUrl ? 'Edit Calendly URL' : 'Add Calendly URL'}</h3>
+            <p className="text-sm text-dark-400 mt-1 mb-4">Paste your Calendly scheduling link (https://calendly.com/...).</p>
+            <input
+              type="url"
+              value={calendlyUrlInput}
+              onChange={(e) => setCalendlyUrlInput(e.target.value)}
+              placeholder="https://calendly.com/your-handle"
+              className="input-field w-full"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setShowCalendlyModal(false)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={savingCalendly || (!calendlyUrlInput.trim())}
+                onClick={async () => {
+                  const me = getCurrentUser();
+                  if (!me) return;
+                  try {
+                    setSavingCalendly(true);
+                    const url = calendlyUrlInput.trim();
+                    const { user } = await updateTutorProfile(me.id, { calendlyUrl: url });
+                    if (user) setUser(user);
+                    setShowCalendlyModal(false);
+                  } catch (err) {
+                    alert(err.message || 'Failed to save Calendly URL');
+                  } finally {
+                    setSavingCalendly(false);
+                  }
+                }}
+              >
+                {savingCalendly ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

@@ -18,6 +18,7 @@ const SignUpPage = () => {
 		confirmPassword: "",
 		userType: "tutor",
 		agreeToTerms: false,
+		calendlyUrl: "",
 	})
 	const navigate = useNavigate()
 
@@ -30,6 +31,7 @@ const SignUpPage = () => {
 						lastName: formData.lastName,
 						email: formData.email,
 						password: formData.password,
+							calendlyUrl: formData.calendlyUrl?.trim() || undefined,
 					})
 							setUser(user)
 					navigate("/tutor-dashboard")
@@ -151,6 +153,25 @@ const SignUpPage = () => {
 								/>
 							</div>
 						</div>
+
+						{/* Tutor-only: Calendly URL (optional) */}
+						{formData.userType === 'tutor' && (
+							<div>
+								<label htmlFor="calendlyUrl" className="block text-sm font-medium text-dark-200 mb-2">
+									Calendly URL (optional)
+								</label>
+								<input
+									id="calendlyUrl"
+									name="calendlyUrl"
+									type="url"
+									value={formData.calendlyUrl}
+									onChange={handleInputChange}
+									className="input-field"
+									placeholder="https://calendly.com/your-handle"
+								/>
+								<p className="text-xs text-dark-400 mt-1">You can add or edit this later in your dashboard.</p>
+							</div>
+						)}
 
 						<div>
 							<label htmlFor="password" className="block text-sm font-medium text-dark-200 mb-2">

@@ -90,3 +90,29 @@ export async function listStudents() {
   }
   return data; // { students: [{id,name,email}] }
 }
+
+export async function getTutorProfile(tutorId) {
+  if (!tutorId) throw new Error('Missing tutorId');
+  const res = await fetch(apiUrl(`/tutor/profile/${tutorId}`));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data && data.error ? data.error : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data; // { user }
+}
+
+export async function updateTutorProfile(tutorId, patch) {
+  if (!tutorId) throw new Error('Missing tutorId');
+  const res = await fetch(apiUrl(`/tutor/profile/${tutorId}`), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data && data.error ? data.error : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data; // { user }
+}
