@@ -4,6 +4,9 @@ import Navbar from './components/Navbar'
 import { Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import SignUpPage from './pages/SignUpPage'
+import StudentDashboard from './pages/StudentDashboard'
+import TutorDashboard from './pages/TutorDashboard'
 
 function App() {
  
@@ -11,12 +14,15 @@ function App() {
   return (
     <>
       <Navbar />
-      <main>
+      <main className="pt-20">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/tutor-dashboard" element={<div className="pt-24 px-6">Tutor Dashboard (placeholder)</div>} />
-          <Route path="/student-dashboard" element={<div className="pt-24 px-6">Student Dashboard (placeholder)</div>} />
+          <Route path="/signup" element={<SignUpPage />} />
+          <Route path="/tutor-dashboard" element={<TutorDashboard />} />
+          <Route path="/student-dashboard" element={<StudentDashboard />} />
+          <Route path="/terms" element={<div className="pt-24 px-6">Terms of Service (placeholder)</div>} />
+          <Route path="/privacy" element={<div className="pt-24 px-6">Privacy Policy (placeholder)</div>} />
         </Routes>
       </main>
     </>
