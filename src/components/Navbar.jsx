@@ -35,9 +35,7 @@ const Navbar = ({ transparent = false }) => {
 						<Link to="/features" className="text-dark-300 hover:text-white transition-colors">
 							Features
 						</Link>
-						<Link to="/pricing" className="text-dark-300 hover:text-white transition-colors">
-							Pricing
-						</Link>
+						
 									{user ? (
 										<Link to={dashPath} className="btn-secondary">Go to Dashboard</Link>
 									) : (

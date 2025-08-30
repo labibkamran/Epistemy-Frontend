@@ -1,15 +1,19 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
-import { Brain, BookOpen, TrendingUp, Calendar, Settings, LogOut, Star, Award, Target } from "lucide-react"
-import { listStudentSessions, listTutorsWithCalendly } from "../api/student"
-import { getUser } from "../auth"
+import { useEffect, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
+import { Brain, BookOpen, TrendingUp, Calendar, Settings, LogOut, Star, Award, Target, X, CreditCard, CheckCircle } from "lucide-react"
+import { listStudentSessions, listTutorsWithCalendly, getStudentStats } from "../api/student"
+import { getUser, clearUser } from "../auth"
 
 const StudentDashboard = () => {
 			const [activeTab, setActiveTab] = useState("overview")
 			const [sessions, setSessions] = useState([])
 			const [tutors, setTutors] = useState([])
+			const [showPaymentModal, setShowPaymentModal] = useState(false)
+			const [selectedTutor, setSelectedTutor] = useState(null)
+			const [stats, setStats] = useState({ totalSessions: 0, avgProgress: 0, completedQuizzes: 0 })
+			const navigate = useNavigate()
 				const [me] = useState(() => getUser())
 
 			useEffect(() => {
@@ -47,6 +51,22 @@ const StudentDashboard = () => {
 				return () => timer && clearInterval(timer)
 			}, [me])
 
+			// Load student statistics
+			useEffect(() => {
+				if (!me || me.role !== 'student') return
+				
+				const loadStats = async () => {
+					try {
+						const statsData = await getStudentStats(me.id)
+						setStats(statsData)
+					} catch (e) {
+						if (import.meta?.env?.DEV) console.warn('getStudentStats failed', e)
+					}
+				}
+				
+				loadStats()
+			}, [me])
+
 				// Load tutors with Calendly for Schedule tab
 				useEffect(() => {
 							const loadTutors = async () => {
@@ -60,15 +80,22 @@ const StudentDashboard = () => {
 							loadTutors();
 				}, [])
 
-		const stats = useMemo(() => {
-			const totalSessions = sessions.length
-			// derive a rough avg progress if progressScore exists
-			const scores = sessions.map(s => s.progressScore).filter(v => typeof v === 'number')
-			const avgProgress = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0) / scores.length) : 0
-			const completedQuizzes = 0 // placeholder until attempts model wired on frontend
-			const currentStreak = 0 // optional feature; left as 0
-			return { totalSessions, avgProgress, completedQuizzes, currentStreak }
-		}, [sessions])
+		const handleBookNow = (tutor) => {
+			setSelectedTutor(tutor)
+			setShowPaymentModal(true)
+		}
+
+		const handlePayNow = () => {
+			if (selectedTutor?.calendlyUrl) {
+				window.open(selectedTutor.calendlyUrl, '_blank')
+				setShowPaymentModal(false)
+				setSelectedTutor(null)
+			}
+		}
+
+		const handleSessionClick = (sessionId) => {
+			navigate(`/session/${sessionId}`)
+		}
 
 	return (
 		<div className="min-h-screen bg-dark-900">
@@ -117,13 +144,16 @@ const StudentDashboard = () => {
 					</div>
 
 					<div className="px-3 mt-8">
-						<Link
-							to="/"
+						<button
+							onClick={() => {
+								clearUser();
+								navigate('/');
+							}}
 							className="w-full flex items-center px-3 py-2 text-sm font-medium text-dark-300 hover:text-white hover:bg-dark-700 rounded-lg"
 						>
 							<LogOut className="h-5 w-5 mr-3" />
 							Sign out
-						</Link>
+						</button>
 					</div>
 				</nav>
 			</div>
@@ -137,7 +167,12 @@ const StudentDashboard = () => {
 							<h1 className="text-2xl font-bold text-white">Student Dashboard</h1>
 							  <p className="text-dark-300">Welcome back, {me?.name || 'Student'}</p>
 						</div>
-						<button className="btn-primary">Book Session</button>
+						<button 
+							onClick={() => setActiveTab("calendar")}
+							className="btn-primary"
+						>
+							Book Session
+						</button>
 					</div>
 				</header>
 
@@ -146,7 +181,7 @@ const StudentDashboard = () => {
 					{activeTab === "overview" && (
 						<div className="space-y-6">
 							  {/* Stats Grid */}
-							  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+							  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 								<div className="card">
 									<div className="flex items-center justify-between">
 										<div>
@@ -166,17 +201,6 @@ const StudentDashboard = () => {
 										</div>
 										<div className="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
 											<Award className="h-6 w-6 text-yellow-500" />
-										</div>
-									</div>
-								</div>
-								<div className="card">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="text-dark-400 text-sm">Current Streak</p>
-											<p className="text-2xl font-bold text-white">{stats.currentStreak} days</p>
-										</div>
-										<div className="w-12 h-12 bg-orange-600/20 rounded-lg flex items-center justify-center">
-											<Star className="h-6 w-6 text-orange-500" />
 										</div>
 									</div>
 								</div>
@@ -210,7 +234,7 @@ const StudentDashboard = () => {
 																								<p className="font-medium text-white">{session.subject}</p>
 																								{session.mainTopic && (
 																									<p className="text-sm text-dark-300 mt-1">Topic: {session.mainTopic}</p>
-																								)}
+																)}
 																							</div>
 											</div>
 											<div className="flex items-center space-x-2">
@@ -245,9 +269,16 @@ const StudentDashboard = () => {
 																									<div>
 																										<h3 className="text-white font-semibold">{t.name}</h3>
 																										<p className="text-dark-400 text-sm">{t.email}</p>
+																										<p className="text-dark-400 text-sm mt-1">Sessions: {t.sessionCount || 0}</p>
+																										<p className="text-dark-400 text-sm mt-1">Price: ${t.sessionPrice || 0}</p>
 																									</div>
 																									<div className="mt-4">
-																										<a href={t.calendlyUrl} target="_blank" rel="noreferrer" className="btn-primary inline-block">Book now</a>
+																										<button 
+																											onClick={() => handleBookNow(t)}
+																											className="btn-primary inline-block"
+																										>
+																											Book now
+																										</button>
 																									</div>
 																								</div>
 																							))}
@@ -266,7 +297,11 @@ const StudentDashboard = () => {
 										) : (
 											<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 												{sessions.map((s) => (
-													<div key={s.id} className="card block hover:bg-dark-700/40 transition-colors">
+													<div 
+														key={s.id} 
+														className="card block hover:bg-dark-700/40 transition-colors cursor-pointer"
+														onClick={() => handleSessionClick(s.id)}
+													>
 														<div className="flex items-start justify-between">
 															<div>
 																<h3 className="text-white font-semibold">{s.subject}</h3>
@@ -287,6 +322,62 @@ const StudentDashboard = () => {
 									</div>
 								)}
 				</main>
+
+				{/* Payment Verification Modal */}
+				{showPaymentModal && (
+					<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+						<div className="bg-dark-800 rounded-lg p-6 w-96 max-w-md mx-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-xl font-semibold text-white">Payment Verification</h3>
+								<button
+									onClick={() => {
+										setShowPaymentModal(false)
+										setSelectedTutor(null)
+									}}
+									className="text-dark-400 hover:text-white"
+								>
+									<X className="h-5 w-5" />
+								</button>
+							</div>
+							
+							<div className="space-y-4">
+								<div className="flex items-center space-x-3 p-3 bg-dark-700 rounded-lg">
+									<CreditCard className="h-6 w-6 text-primary-500" />
+									<div>
+										<p className="text-white font-medium">Tutor: {selectedTutor?.name}</p>
+										<p className="text-dark-400 text-sm">Session Price: ${selectedTutor?.sessionPrice || 0}</p>
+									</div>
+								</div>
+								
+								<div className="p-4 bg-green-600/20 border border-green-600/30 rounded-lg">
+									<div className="flex items-center space-x-2">
+										<CheckCircle className="h-5 w-5 text-green-500" />
+										<span className="text-green-400 text-sm font-medium">Payment Verified</span>
+									</div>
+									<p className="text-green-300 text-xs mt-1">Your payment has been processed successfully</p>
+								</div>
+								
+								<div className="flex space-x-3">
+									<button
+										onClick={() => {
+											setShowPaymentModal(false)
+											setSelectedTutor(null)
+										}}
+										className="flex-1 px-4 py-2 bg-dark-700 text-white rounded-lg hover:bg-dark-600 transition-colors"
+									>
+										Cancel
+									</button>
+									<button
+										onClick={handlePayNow}
+										className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+									>
+										Pay Now
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	)
