@@ -26,6 +26,9 @@ const TutorDashboard = () => {
   const [showCalendlyModal, setShowCalendlyModal] = useState(false)
   const [calendlyUrlInput, setCalendlyUrlInput] = useState("")
   const [savingCalendly, setSavingCalendly] = useState(false)
+  const [showPriceModal, setShowPriceModal] = useState(false)
+  const [priceInput, setPriceInput] = useState("")
+  const [savingPrice, setSavingPrice] = useState(false)
 
   // Sessions start empty; filled when the tutor creates one
   const [sessions, setSessions] = useState([])
@@ -75,8 +78,9 @@ const TutorDashboard = () => {
     (async () => {
       try {
         const { user } = await getTutorProfile(me.id);
-        if (user && user.calendlyUrl !== me.calendlyUrl) {
-          setUser({ ...me, calendlyUrl: user.calendlyUrl || null });
+        if (user) {
+          const changed = (user.calendlyUrl !== me.calendlyUrl) || (user.sessionPrice !== me.sessionPrice);
+          if (changed) setUser({ ...me, calendlyUrl: user.calendlyUrl || null, sessionPrice: user.sessionPrice ?? null });
         }
       } catch (e) {
         if (import.meta?.env?.DEV) console.warn('getTutorProfile failed', e)
@@ -204,7 +208,7 @@ const TutorDashboard = () => {
         <main className="p-6">
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Calendly Section */}
+              {/* Pricing & Calendly Section */}
               <div className="card">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -221,6 +225,19 @@ const TutorDashboard = () => {
                       ) : (
                         <button className="btn-primary" onClick={() => { setCalendlyUrlInput(""); setShowCalendlyModal(true); }}>
                           Add Calendly URL
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-4">
+                      <p className="text-sm text-dark-400">Your session price</p>
+                      {getCurrentUser()?.sessionPrice != null ? (
+                        <div className="flex items-center justify-between bg-dark-700 border border-dark-600 rounded-lg p-3 mt-1">
+                          <span className="text-white font-medium">${getCurrentUser().sessionPrice}</span>
+                          <button className="btn-secondary" onClick={() => { setPriceInput(String(getCurrentUser().sessionPrice ?? '')); setShowPriceModal(true); }}>Edit</button>
+                        </div>
+                      ) : (
+                        <button className="btn-primary mt-1" onClick={() => { setPriceInput(""); setShowPriceModal(true); }}>
+                          Set session price
                         </button>
                       )}
                     </div>
@@ -453,6 +470,49 @@ const TutorDashboard = () => {
                 }}
               >
                 {savingCalendly ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Price Modal */}
+      {showPriceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md p-6 mx-4">
+            <h3 className="text-lg font-semibold text-white">{getCurrentUser()?.sessionPrice != null ? 'Edit session price' : 'Set session price'}</h3>
+            <p className="text-sm text-dark-400 mt-1 mb-4">Enter your price per session. Use a number like 25 or 49.99.</p>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              placeholder="e.g., 25"
+              className="input-field w-full"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setShowPriceModal(false)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={savingPrice || priceInput === '' || Number(priceInput) < 0}
+                onClick={async () => {
+                  const me = getCurrentUser();
+                  if (!me) return;
+                  try {
+                    setSavingPrice(true);
+                    const value = priceInput === '' ? null : Number(priceInput);
+                    const { user } = await updateTutorProfile(me.id, { sessionPrice: value });
+                    if (user) setUser(user);
+                    setShowPriceModal(false);
+                  } catch (err) {
+                    alert(err.message || 'Failed to save price');
+                  } finally {
+                    setSavingPrice(false);
+                  }
+                }}
+              >
+                {savingPrice ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

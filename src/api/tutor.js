@@ -14,9 +14,9 @@ async function doPost(path, body) {
   return data;
 }
 
-export async function tutorSignup({ firstName, lastName, email, password, calendlyUrl }) {
+export async function tutorSignup({ firstName, lastName, email, password, calendlyUrl, sessionPrice }) {
   const name = [firstName, lastName].filter(Boolean).join(' ').trim();
-  return doPost('/tutor/signup', { name, email, password, calendlyUrl });
+  return doPost('/tutor/signup', { name, email, password, calendlyUrl, sessionPrice });
 }
 
 export async function tutorLogin({ email, password }) {

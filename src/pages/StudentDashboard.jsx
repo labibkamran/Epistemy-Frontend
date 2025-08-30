@@ -1,66 +1,74 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { Brain, BookOpen, TrendingUp, Calendar, Settings, LogOut, Star, Award, Target } from "lucide-react"
+import { listStudentSessions, listTutorsWithCalendly } from "../api/student"
+import { getUser } from "../auth"
 
 const StudentDashboard = () => {
-	const [activeTab, setActiveTab] = useState("overview")
+			const [activeTab, setActiveTab] = useState("overview")
+			const [sessions, setSessions] = useState([])
+			const [tutors, setTutors] = useState([])
+				const [me] = useState(() => getUser())
 
-	// Mock data
-	const sessions = [
-		{
-			id: 1,
-			tutor: "Sarah Mitchell",
-			subject: "Calculus",
-			date: "2024-01-15",
-			duration: "60 min",
-			status: "completed",
-			topics: ["Derivatives", "Chain Rule", "Product Rule"],
-			progressScore: 85,
-			feedback:
-				"Great improvement in understanding derivatives! Focus on practicing more complex chain rule problems.",
-			quizAvailable: true,
-			quizScore: 8,
-			quizTotal: 10,
-		},
-		{
-			id: 2,
-			tutor: "Sarah Mitchell",
-			subject: "Calculus",
-			date: "2024-01-08",
-			duration: "60 min",
-			status: "completed",
-			topics: ["Limits", "Continuity", "Basic Derivatives"],
-			progressScore: 78,
-			feedback:
-				"Good foundation in limits. Need to work on derivative notation and basic rules.",
-			quizAvailable: true,
-			quizScore: 7,
-			quizTotal: 10,
-		},
-		{
-			id: 3,
-			tutor: "Sarah Mitchell",
-			subject: "Calculus",
-			date: "2024-01-22",
-			duration: "60 min",
-			status: "upcoming",
-			topics: [],
-			progressScore: null,
-			feedback: null,
-			quizAvailable: false,
-			quizScore: null,
-			quizTotal: null,
-		},
-	]
+			useEffect(() => {
+			let timer
+				if (!me || me.role !== 'student') return
+			const load = async () => {
+				try {
+				const { sessions: raw } = await listStudentSessions(me.id)
+				const filtered = (raw || []).filter(s => (s?.status === 'processed' || s?.status === 'published'))
+																const mapped = filtered.map(s => {
+																		const topicsObj = s.topics || (s.pack && s.pack.topics) || null;
+																		const mainTopic = topicsObj?.subject || null;
+																		return ({
+						id: s._id || s.id,
+													tutor: s.tutorName || null,
+						subject: s.title || 'Untitled',
+						date: s.createdAt ? new Date(s.createdAt).toISOString().slice(0,10) : '',
+						duration: '-',
+						status: s.status || 'draft',
+																	topics: topicsObj,
+																	mainTopic: mainTopic || (s.title || null),
+						progressScore: s.progress?.score ?? null,
+						feedback: s.summary?.executive || null,
+						quizAvailable: Array.isArray(s.quiz) && s.quiz.length > 0,
+						quizScore: null,
+						quizTotal: null,
+																})})
+					setSessions(mapped)
+				} catch (e) {
+					if (import.meta?.env?.DEV) console.warn('listStudentSessions failed', e)
+				}
+			}
+			load()
+			timer = setInterval(load, 5000)
+				return () => timer && clearInterval(timer)
+			}, [me])
 
-	const stats = {
-		totalSessions: 12,
-		avgProgress: 82,
-		completedQuizzes: 8,
-		currentStreak: 5,
-	}
+				// Load tutors with Calendly for Schedule tab
+				useEffect(() => {
+							const loadTutors = async () => {
+											try {
+															const { tutors } = await listTutorsWithCalendly();
+															setTutors(tutors || []);
+											} catch (e) {
+															if (import.meta?.env?.DEV) console.warn('listTutorsWithCalendly failed', e)
+											}
+							};
+							loadTutors();
+				}, [])
+
+		const stats = useMemo(() => {
+			const totalSessions = sessions.length
+			// derive a rough avg progress if progressScore exists
+			const scores = sessions.map(s => s.progressScore).filter(v => typeof v === 'number')
+			const avgProgress = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0) / scores.length) : 0
+			const completedQuizzes = 0 // placeholder until attempts model wired on frontend
+			const currentStreak = 0 // optional feature; left as 0
+			return { totalSessions, avgProgress, completedQuizzes, currentStreak }
+		}, [sessions])
 
 	return (
 		<div className="min-h-screen bg-dark-900">
@@ -96,17 +104,6 @@ const StudentDashboard = () => {
 							My Sessions
 						</button>
 						<button
-							onClick={() => setActiveTab("progress")}
-							className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg mb-1 ${
-								activeTab === "progress"
-									? "bg-primary-600 text-white"
-									: "text-dark-300 hover:text-white hover:bg-dark-700"
-							}`}
-						>
-							<Target className="h-5 w-5 mr-3" />
-							Progress
-						</button>
-						<button
 							onClick={() => setActiveTab("calendar")}
 							className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg mb-1 ${
 								activeTab === "calendar"
@@ -120,11 +117,6 @@ const StudentDashboard = () => {
 					</div>
 
 					<div className="px-3 mt-8">
-						<p className="px-3 text-xs font-semibold text-dark-400 uppercase tracking-wider">Account</p>
-						<button className="w-full flex items-center px-3 py-2 text-sm font-medium text-dark-300 hover:text-white hover:bg-dark-700 rounded-lg mt-2">
-							<Settings className="h-5 w-5 mr-3" />
-							Settings
-						</button>
 						<Link
 							to="/"
 							className="w-full flex items-center px-3 py-2 text-sm font-medium text-dark-300 hover:text-white hover:bg-dark-700 rounded-lg"
@@ -143,7 +135,7 @@ const StudentDashboard = () => {
 					<div className="flex items-center justify-between">
 						<div>
 							<h1 className="text-2xl font-bold text-white">Student Dashboard</h1>
-							<p className="text-dark-300">Welcome back, Alice Johnson</p>
+							  <p className="text-dark-300">Welcome back, {me?.name || 'Student'}</p>
 						</div>
 						<button className="btn-primary">Book Session</button>
 					</div>
@@ -153,8 +145,8 @@ const StudentDashboard = () => {
 				<main className="p-6">
 					{activeTab === "overview" && (
 						<div className="space-y-6">
-							{/* Stats Grid */}
-							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+							  {/* Stats Grid */}
+							  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 								<div className="card">
 									<div className="flex items-center justify-between">
 										<div>
@@ -163,17 +155,6 @@ const StudentDashboard = () => {
 										</div>
 										<div className="w-12 h-12 bg-primary-600/20 rounded-lg flex items-center justify-center">
 											<BookOpen className="h-6 w-6 text-primary-500" />
-										</div>
-									</div>
-								</div>
-								<div className="card">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="text-dark-400 text-sm">Avg Progress</p>
-											<p className="text-2xl font-bold text-white">{stats.avgProgress}%</p>
-										</div>
-										<div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
-											<TrendingUp className="h-6 w-6 text-green-500" />
 										</div>
 									</div>
 								</div>
@@ -213,7 +194,7 @@ const StudentDashboard = () => {
 									</button>
 								</div>
 								<div className="space-y-4">
-									{sessions.slice(0, 3).map((session) => (
+									  {(sessions || []).slice(0, 3).map((session) => (
 										<div key={session.id} className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
 											<div className="flex items-center space-x-4">
 												<div
@@ -225,14 +206,12 @@ const StudentDashboard = () => {
 																: "bg-yellow-500"
 													}`}
 												/>
-												<div>
-													<p className="font-medium text-white">
-														{session.subject} with {session.tutor}
-													</p>
-													<p className="text-sm text-dark-300">
-														{session.date} • {session.duration}
-													</p>
-												</div>
+																							<div>
+																								<p className="font-medium text-white">{session.subject}</p>
+																								{session.mainTopic && (
+																									<p className="text-sm text-dark-300 mt-1">Topic: {session.mainTopic}</p>
+																								)}
+																							</div>
 											</div>
 											<div className="flex items-center space-x-2">
 												{session.status === "completed" && session.progressScore && (
@@ -248,26 +227,65 @@ const StudentDashboard = () => {
 									))}
 								</div>
 							</div>
-
-							{/* Next Session */}
-							<div className="card">
-								<h2 className="text-xl font-semibold text-white mb-4">Next Session</h2>
-								<div className="bg-primary-600/10 border border-primary-600/20 rounded-lg p-4">
-									<div className="flex items-center justify-between">
-										<div>
-											<h3 className="font-semibold text-white">Calculus with Sarah Mitchell</h3>
-											<p className="text-dark-300">January 22, 2024 • 3:00 PM • 60 minutes</p>
-											<p className="text-sm text-primary-400 mt-1">Integration and Area Under Curves</p>
-										</div>
-										<div className="flex items-center space-x-2">
-											<button className="btn-secondary">Reschedule</button>
-											<button className="btn-primary">Join Session</button>
-										</div>
-									</div>
-								</div>
-							</div>
 						</div>
 					)}
+
+																			{activeTab === "calendar" && (
+																				<div className="space-y-4">
+																					<div className="flex items-center justify-between">
+																						<h2 className="text-xl font-semibold text-white">Schedule</h2>
+																					</div>
+
+																					{(!tutors || tutors.length === 0) ? (
+																						<div className="card text-center text-dark-300">No tutors available for booking.</div>
+																					) : (
+																						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+																							{tutors.map((t) => (
+																								<div key={t.id} className="card flex flex-col justify-between">
+																									<div>
+																										<h3 className="text-white font-semibold">{t.name}</h3>
+																										<p className="text-dark-400 text-sm">{t.email}</p>
+																									</div>
+																									<div className="mt-4">
+																										<a href={t.calendlyUrl} target="_blank" rel="noreferrer" className="btn-primary inline-block">Book now</a>
+																									</div>
+																								</div>
+																							))}
+																						</div>
+																					)}
+																				</div>
+																			)}
+								{activeTab === "sessions" && (
+									<div className="space-y-4">
+										<div className="flex items-center justify-between">
+											<h2 className="text-xl font-semibold text-white">My Sessions</h2>
+										</div>
+
+										{(!sessions || sessions.length === 0) ? (
+											<div className="card text-center text-dark-300">You have no sessions yet.</div>
+										) : (
+											<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+												{sessions.map((s) => (
+													<div key={s.id} className="card block hover:bg-dark-700/40 transition-colors">
+														<div className="flex items-start justify-between">
+															<div>
+																<h3 className="text-white font-semibold">{s.subject}</h3>
+																  <p className="text-dark-400 text-sm">{s.tutor ? `Tutor: ${s.tutor}` : ''}</p>
+															</div>
+															{/* Status chip removed for students */}
+														</div>
+														<div className="mt-3 text-sm text-dark-300">
+															<div>Date created: {s.date || '-'}</div>
+															{s.mainTopic && (
+																<div className="mt-1">Topic: {s.mainTopic}</div>
+															)}
+														</div>
+													</div>
+												))}
+											</div>
+										)}
+									</div>
+								)}
 				</main>
 			</div>
 		</div>
