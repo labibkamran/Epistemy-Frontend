@@ -2,6 +2,11 @@
 
 A modern, responsive React frontend for Epistemy - the intelligent tutoring platform that transforms raw video sessions into structured, AI-powered learning experiences.
 
+## Live Demo
+Visit our live demo to see the complete Epistemy experience:
+**[https://epistemy.labibkamran.com](https://epistemy.labibkamran.com)**
+
+
 ## 📚 **Table of Contents**
 
 - [Overview](#overview)
@@ -159,13 +164,6 @@ Our frontend makes complex AI operations feel magical:
 - **Vite**: Fast build tool and development server
 - **ESLint**: Code quality and consistency
 - **Git**: Version control and collaboration
-
-## Live Demo
-
-🚀 **Experience Epistemy in Action**
-
-Visit our live demo to see the complete Epistemy experience:
-**[https://epistemy.labibkamran.com](https://epistemy.labibkamran.com)**
 
 ### **What You'll See:**
 - **Tutor Dashboard**: Complete session management and AI content generation
