@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getTutorSession, uploadTranscript, updateTutorSession } from '../api/tutor'
-import { ArrowLeft, Upload, CheckCircle2, Clock, Brain, LogOut, Plus, Trash2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Upload, CheckCircle2, Clock, Brain, LogOut, Plus, Trash2, Loader2, FileText } from 'lucide-react'
 import { clearUser } from '../auth'
+import { generateSessionPDF } from '../services/pdfService'
 
 export default function SessionDetails() {
   const { id } = useParams()
@@ -13,6 +14,7 @@ export default function SessionDetails() {
   const [session, setSession] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [generatingPDF, setGeneratingPDF] = useState(false)
   
 
   useEffect(() => {
@@ -49,6 +51,31 @@ export default function SessionDetails() {
       alert(e.message || 'Upload failed')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleGeneratePDF = async () => {
+    if (!session) return
+    
+    try {
+      setGeneratingPDF(true)
+      
+      // Debug: Log the session data being passed
+      console.log('Session data being passed to PDF generator:', session)
+      
+      const result = await generateSessionPDF(session)
+      
+      if (result.success) {
+        // PDF generated successfully
+        console.log('PDF generated:', result.filename)
+      } else {
+        alert(`PDF generation failed: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('PDF generation error:', error)
+      alert('Failed to generate PDF. Please try again.')
+    } finally {
+      setGeneratingPDF(false)
     }
   }
 
@@ -90,10 +117,6 @@ export default function SessionDetails() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const printPDF = () => {
-    window.print()
   }
 
   return (
@@ -168,7 +191,23 @@ export default function SessionDetails() {
             {processed && (
               <div className="mt-4 flex gap-2">
                 <button className="btn-primary" onClick={saveEdits} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
-                <button className="btn-secondary" onClick={printPDF}>Export PDF</button>
+                <button 
+                  className="btn-secondary flex items-center gap-2" 
+                  onClick={handleGeneratePDF}
+                  disabled={generatingPDF}
+                >
+                  {generatingPDF ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4" />
+                      Export PDF
+                    </>
+                  )}
+                </button>
                 {/* Placeholder: Share link could point to a public route with token */}
                 {/* <button className="btn-secondary" onClick={copyShareLink}>Copy Share Link</button> */}
               </div>
@@ -432,8 +471,8 @@ export default function SessionDetails() {
                               />
                               <input
                                 className="flex-1 bg-dark-800 border border-dark-700 rounded p-2 text-dark-200"
-                                value={c}
                                 placeholder={`Choice ${ci + 1}`}
+                                value={c}
                                 onChange={(e) => {
                                   const arr = [...session.quiz]
                                   const choices = [...(arr[i].choices || [])]
