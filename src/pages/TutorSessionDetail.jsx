@@ -43,7 +43,12 @@ export default function SessionDetails() {
         return
       }
       setUploading(true)
-      await uploadTranscript({ sessionId: id, studentId: session.studentId, file })
+      // Ensure studentId is always a string
+      let studentId = session.studentId
+      if (typeof studentId === 'object' && studentId !== null) {
+        studentId = studentId._id || ''
+      }
+      await uploadTranscript({ sessionId: id, studentId: String(studentId), file })
       // Refresh details after upload
       const { session: fresh } = await getTutorSession(id)
       setSession(fresh)

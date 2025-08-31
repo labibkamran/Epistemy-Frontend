@@ -32,8 +32,8 @@ export async function uploadTranscript({ sessionId, studentId = null, file }) {
   if (!sessionId) throw new Error('Missing sessionId');
   if (!file) throw new Error('Missing transcript file');
   const form = new FormData();
-  form.append('sessionId', sessionId);
-  if (studentId) form.append('studentId', studentId);
+  form.append('sessionId', String(sessionId));
+  if (studentId) form.append('studentId', String(studentId));
   form.append('transcript', file);
   const res = await fetch(apiUrl('/tutor/process-session'), { method: 'POST', body: form });
   const data = await res.json().catch(() => ({}));
