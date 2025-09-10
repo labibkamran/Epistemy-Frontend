@@ -12,7 +12,7 @@ const HomePage = () => {
             Transform Your <span className="gradient-text">Learning</span> Journey with AI
           </h1>
           <p className="text-xl md:text-2xl text-dark-300 mb-8 max-w-3xl mx-auto text-pretty">
-            Whether you're a tutor looking to scale or a student aiming to learn smarter, our AI-powered platform enhances your educational experience.
+            Whether you're a tutor looking to scale or a student aiming to learn smarter, our AI-powered platform enhances your educational experience in modern ways.
           </p>
         </div>
       </section>
